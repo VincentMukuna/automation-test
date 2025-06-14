@@ -21,19 +21,18 @@ async function processWebsite(
 	try {
 		console.log(`Processing ${website}...`);
 
-		// Instantiate SitemapParser with the website URL
+		// First try sitemap
 		const sitemapParser = new SitemapParser(website);
-
-		// Parse sitemap and get URLs, and track which method was used
-		let sitemapUrlUsed = "";
 		let urls = {
 			aboutPage: null,
 			collectionsPage: null,
 			productPage: null,
 		};
-		let triedSitemaps = sitemapParser.sitemapUrls;
+		let sitemapUrlUsed = "";
 		let found = false;
-		for (const sitemapUrl of triedSitemaps) {
+
+		// Try all possible sitemap locations
+		for (const sitemapUrl of sitemapParser.sitemapUrls) {
 			try {
 				const response = await require("axios").get(sitemapUrl, {
 					headers: {
@@ -47,7 +46,6 @@ async function processWebsite(
 				const result = await parser.parseStringPromise(response.data);
 				let urlList = [];
 				if (result.sitemapindex && result.sitemapindex.sitemap) {
-					// If sitemap index, process all sitemaps
 					for (const sitemap of result.sitemapindex.sitemap) {
 						const subResponse = await require("axios").get(
 							sitemap.loc[0]
@@ -71,25 +69,38 @@ async function processWebsite(
 				found = true;
 				break;
 			} catch (e) {
-				// Try next
+				console.log(`Sitemap not found at ${sitemapUrl}`);
 			}
 		}
+
+		// If sitemap not found, analyze homepage
 		if (!found) {
-			// Fallback: try robots.txt and homepage crawl
-			sitemapUrlUsed = "(fallback)";
-			urls = await sitemapParser.tryFallbackMethods();
+			console.log("No sitemap found, analyzing homepage...");
+			sitemapUrlUsed = "(homepage analysis)";
+			const homepageAnalysis = await contentScraper.analyzeHomepage(
+				website
+			);
+			urls = homepageAnalysis.urls;
+
+			// If we have homepage content but no about page, use homepage content for OpenAI
+			if (!urls.aboutPage && homepageAnalysis.content) {
+				urls.aboutPage = website;
+			}
 		}
 
-		// Scrape content from each page
-		const aboutContent = urls.aboutPage
-			? await contentScraper.scrapeContent(urls.aboutPage)
-			: "";
-		const collectionsContent = urls.collectionsPage
-			? await contentScraper.scrapeContent(urls.collectionsPage)
-			: "";
-		const productContent = urls.productPage
-			? await contentScraper.scrapeContent(urls.productPage)
-			: "";
+		// Scrape content from each page in parallel
+		const [aboutContent, collectionsContent, productContent] =
+			await Promise.all([
+				urls.aboutPage
+					? contentScraper.scrapeContent(urls.aboutPage)
+					: Promise.resolve(""),
+				urls.collectionsPage
+					? contentScraper.scrapeContent(urls.collectionsPage)
+					: Promise.resolve(""),
+				urls.productPage
+					? contentScraper.scrapeContent(urls.productPage)
+					: Promise.resolve(""),
+			]);
 
 		// Determine if eCommerce
 		const isEcommerce = contentScraper.isEcommerceStore(
@@ -120,8 +131,10 @@ async function processWebsite(
 		// Append to Google Sheets
 		await sheetsService.appendRow(rowData);
 		console.log(`Completed processing ${website}`);
+		return rowData;
 	} catch (error) {
 		console.error(`Error processing ${website}:`, error.message);
+		throw error;
 	}
 }
 
@@ -134,17 +147,36 @@ async function main() {
 		// Initialize Google Sheet
 		await sheetsService.initializeSheet();
 
-		// Process each website
-		for (const website of websites) {
-			await processWebsite(
-				website,
-				contentScraper,
-				openaiService,
-				sheetsService
-			);
-		}
+		// Process all websites in parallel
+		console.log("Starting parallel processing of all websites...");
+		const results = await Promise.all(
+			websites.map((website) =>
+				processWebsite(
+					website,
+					contentScraper,
+					openaiService,
+					sheetsService
+				).catch((error) => {
+					console.error(
+						`Failed to process ${website}:`,
+						error.message
+					);
+					return null;
+				})
+			)
+		);
 
-		console.log("All websites processed successfully!");
+		// Filter out failed results and log summary
+		const successfulResults = results.filter((result) => result !== null);
+		console.log(`\nProcessing complete!`);
+		console.log(
+			`Successfully processed: ${successfulResults.length} websites`
+		);
+		console.log(
+			`Failed to process: ${
+				websites.length - successfulResults.length
+			} websites`
+		);
 	} catch (error) {
 		console.error("Error in main process:", error.message);
 	}
