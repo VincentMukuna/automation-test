@@ -23,10 +23,28 @@ class EmailService {
 				}
 			);
 
+			console.log("LeadMagic Email Validation Response for:", email, response.data);
+
+			// Extract company information from validation response
+			const companyInfo = {
+				companyName: response.data.company_name || "",
+				companyIndustry: response.data.company_industry || "",
+				companySize: response.data.company_size || "",
+				companyFounded: response.data.company_founded || "",
+				companyLinkedinUrl: response.data.company_linkedin_url ? `https://${response.data.company_linkedin_url}` : "",
+				companyLinkedinId: response.data.company_linkedin_id || "",
+				companyFacebookUrl: response.data.company_facebook_url || "",
+				companyTwitterUrl: response.data.company_twitter_url || "",
+				companyType: response.data.company_type || "",
+				mxProvider: response.data.mx_provider || "",
+				isDomainCatchAll: response.data.is_domain_catch_all || false
+			};
+
 			return {
-				isValid: response.data.valid || false,
-				status: response.data.status || "unknown",
-				source: response.data.source || "leadmagic"
+				isValid: response.data.email_status === 'valid' || response.data.email_status === 'valid_catch_all',
+				status: response.data.email_status || "unknown",
+				source: "leadmagic",
+				companyInfo
 			};
 		} catch (error) {
 			console.error("LeadMagic Email Validation Error:");
@@ -62,10 +80,28 @@ class EmailService {
 				}
 			);
 
+			console.log("LeadMagic Email Finder Response for:", firstName, lastName, domain, response.data);
+
+			// Extract company information from finder response
+			const companyInfo = {
+				companyName: response.data.company_name || "",
+				companyIndustry: response.data.company_industry || "",
+				companySize: response.data.company_size || "",
+				companyFounded: response.data.company_founded || "",
+				companyLinkedinUrl: response.data.company_linkedin_url ? `https://${response.data.company_linkedin_url}` : "",
+				companyLinkedinId: response.data.company_linkedin_id || "",
+				companyFacebookUrl: response.data.company_facebook_url || "",
+				companyTwitterUrl: response.data.company_twitter_url || "",
+				companyType: response.data.company_type || "",
+				mxProvider: response.data.mx_provider || "",
+				isDomainCatchAll: response.data.is_domain_catch_all || false
+			};
+
 			return {
 				email: response.data.email || null,
 				confidence: response.data.confidence || 0,
-				source: response.data.source || "leadmagic"
+				source: "leadmagic",
+				companyInfo
 			};
 		} catch (error) {
 			console.error("LeadMagic Email Finder Error:");
@@ -85,6 +121,7 @@ class EmailService {
 		let isValid = false;
 		let validationStatus = "not_provided";
 		let validationSource = "none";
+		let companyInfo = {};
 
 		// If email is provided, validate it
 		if (email) {
@@ -93,6 +130,7 @@ class EmailService {
 				isValid = validation.isValid;
 				validationStatus = validation.status;
 				validationSource = validation.source;
+				companyInfo = validation.companyInfo || {};
 			} catch (error) {
 				isValid = false;
 				validationStatus = "error";
@@ -111,6 +149,10 @@ class EmailService {
 					isValid = validation.isValid;
 					validationStatus = validation.status;
 					validationSource = validation.source;
+					companyInfo = validation.companyInfo || foundEmail.companyInfo || {};
+				} else {
+					// Use company info from finder even if no email found
+					companyInfo = foundEmail.companyInfo || {};
 				}
 			} catch (error) {
 				isValid = false;
@@ -123,7 +165,8 @@ class EmailService {
 			email,
 			isValid,
 			validationStatus,
-			validationSource
+			validationSource,
+			companyInfo
 		};
 	}
 }

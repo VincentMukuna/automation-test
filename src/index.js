@@ -216,7 +216,15 @@ async function processLead(
 		rowData.integrations_meta = integrations.meta;
 		rowData.personalized_icebreaker = personalizedIcebreaker;
 
-		// Add social media links
+		// Add LeadMagic company information
+		if (emailResult.companyInfo) {
+			rowData.organization_linkedin_url = emailResult.companyInfo.companyLinkedinUrl || "";
+			rowData.organization_facebook_url = emailResult.companyInfo.companyFacebookUrl || "";
+			rowData.organization_founded_year = emailResult.companyInfo.companyFounded || "";
+			rowData.organization_estimated_num_employees = emailResult.companyInfo.companySize || "";
+		}
+
+		// Add social media links from contact page
 		const socialLinks = contactExtractor.formatSocialLinks(contactInfo.socialLinks);
 		Object.assign(rowData, socialLinks);
 
