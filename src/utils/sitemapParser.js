@@ -191,6 +191,8 @@ class SitemapParser {
 			aboutPage: null,
 			collectionsPage: null,
 			productPage: null,
+			contactPage: null,
+			blogPage: null,
 		};
 
 		// Sort URLs by relevance (prefer shorter URLs for the same type)
@@ -208,9 +210,22 @@ class SitemapParser {
 					lowerUrl.includes("/our-story") ||
 					lowerUrl.includes("/who-we-are") ||
 					lowerUrl.includes("/company") ||
-					lowerUrl.includes("/team"))
+					lowerUrl.includes("/team") ||
+					lowerUrl.includes("/story"))
 			) {
 				result.aboutPage = url;
+			}
+
+			// Contact page matching
+			if (
+				!result.contactPage &&
+				(lowerUrl.includes("/contact") ||
+					lowerUrl.includes("/contact-us") ||
+					lowerUrl.includes("/get-in-touch") ||
+					lowerUrl.includes("/reach-us") ||
+					lowerUrl.includes("/connect"))
+			) {
+				result.contactPage = url;
 			}
 
 			// Collections page matching
@@ -239,6 +254,19 @@ class SitemapParser {
 					lowerUrl.includes("/shop/"))
 			) {
 				result.productPage = url;
+			}
+
+			// Blog page matching
+			if (
+				!result.blogPage &&
+				(lowerUrl.includes("/blog") ||
+					lowerUrl.includes("/news") ||
+					lowerUrl.includes("/articles") ||
+					lowerUrl.includes("/posts") ||
+					lowerUrl.includes("/journal") ||
+					lowerUrl.includes("/magazine"))
+			) {
+				result.blogPage = url;
 			}
 		}
 

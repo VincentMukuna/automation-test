@@ -87,6 +87,22 @@ class ContentScraper {
 			// Find all links
 			$("a").each((i, link) => {
 				const href = $(link).attr("href");
+				if (href) {
+					// Convert relative URLs to absolute
+					let fullUrl;
+					if (href.startsWith("http")) {
+						fullUrl = href;
+					} else if (href.startsWith("/")) {
+						fullUrl = baseUrl + href;
+					} else {
+						fullUrl = baseUrl + "/" + href;
+					}
+					
+					// Only include URLs from the same domain
+					if (fullUrl.startsWith(baseUrl)) {
+						urls.add(fullUrl);
+					}
+				}
 			});
 
 			// Get main content
@@ -117,6 +133,8 @@ class ContentScraper {
 				aboutPage: null,
 				collectionsPage: null,
 				productPage: null,
+				contactPage: null,
+				blogPage: null,
 			};
 
 			// Sort URLs by relevance (prefer shorter URLs for the same type)
@@ -136,9 +154,22 @@ class ContentScraper {
 						lowerUrl.includes("/our-story") ||
 						lowerUrl.includes("/who-we-are") ||
 						lowerUrl.includes("/company") ||
-						lowerUrl.includes("/team"))
+						lowerUrl.includes("/team") ||
+						lowerUrl.includes("/story"))
 				) {
 					categorizedUrls.aboutPage = url;
+				}
+
+				// Contact page matching
+				if (
+					!categorizedUrls.contactPage &&
+					(lowerUrl.includes("/contact") ||
+						lowerUrl.includes("/contact-us") ||
+						lowerUrl.includes("/get-in-touch") ||
+						lowerUrl.includes("/reach-us") ||
+						lowerUrl.includes("/connect"))
+				) {
+					categorizedUrls.contactPage = url;
 				}
 
 				// Collections page matching
@@ -168,6 +199,19 @@ class ContentScraper {
 				) {
 					categorizedUrls.productPage = url;
 				}
+
+				// Blog page matching
+				if (
+					!categorizedUrls.blogPage &&
+					(lowerUrl.includes("/blog") ||
+						lowerUrl.includes("/news") ||
+						lowerUrl.includes("/articles") ||
+						lowerUrl.includes("/posts") ||
+						lowerUrl.includes("/journal") ||
+						lowerUrl.includes("/magazine"))
+				) {
+					categorizedUrls.blogPage = url;
+				}
 			}
 
 			return {
@@ -182,6 +226,8 @@ class ContentScraper {
 					aboutPage: null,
 					collectionsPage: null,
 					productPage: null,
+					contactPage: null,
+					blogPage: null,
 				},
 				content: "",
 				allUrls: [],
