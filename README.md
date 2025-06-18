@@ -197,8 +197,8 @@ The system includes robust error handling:
 
 ### LeadMagic API
 
-- **Email Validation**: `POST /validate-email`
-- **Email Finder**: `POST /find-email`
+- **Email Validation**: `POST /email-validate`
+- **Email Finder**: `POST /email-finder`
 
 ### OpenAI API
 
