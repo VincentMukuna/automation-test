@@ -63,7 +63,7 @@ class PlatformDetector {
 			for (const [platform, patterns] of Object.entries(this.platformPatterns)) {
 				for (const pattern of patterns) {
 					if (html.toLowerCase().includes(pattern.toLowerCase())) {
-						return platform;
+						return this.capitalizePlatform(platform);
 					}
 				}
 			}
@@ -72,29 +72,40 @@ class PlatformDetector {
 			if ($('meta[name="generator"]').length > 0) {
 				const generator = $('meta[name="generator"]').attr('content');
 				if (generator && generator.toLowerCase().includes('shopify')) {
-					return 'shopify';
+					return 'Shopify';
 				}
 				if (generator && generator.toLowerCase().includes('woocommerce')) {
-					return 'woocommerce';
+					return 'WooCommerce';
 				}
 			}
 
 			// Check for platform-specific classes
 			if ($('.shopify-section').length > 0) {
-				return 'shopify';
+				return 'Shopify';
 			}
 			if ($('.woocommerce').length > 0) {
-				return 'woocommerce';
+				return 'WooCommerce';
 			}
 			if ($('[data-bc-sf-filter]').length > 0) {
-				return 'bigcommerce';
+				return 'BigCommerce';
 			}
 
-			return 'unknown';
+			return 'Unknown';
 		} catch (error) {
 			console.error(`Error detecting platform for ${domain}:`, error.message);
-			return 'unknown';
+			return 'Unknown';
 		}
+	}
+
+	capitalizePlatform(platform) {
+		const platformMap = {
+			'shopify': 'Shopify',
+			'woocommerce': 'WooCommerce',
+			'bigcommerce': 'BigCommerce',
+			'webflow': 'Webflow',
+			'unknown': 'Custom or Unknown'
+		};
+		return platformMap[platform] || 'Custom';
 	}
 
 	async detectIntegrations(domain) {

@@ -19,14 +19,14 @@ class SheetsService {
 			// Check if headers exist
 			const response = await this.sheets.spreadsheets.values.get({
 				spreadsheetId: this.spreadsheetId,
-				range: "A1:AT1",
+				range: "A1:AU1",
 			});
 
 			if (!response.data.values) {
-				// Add headers if sheet is empty
+				// Add headers if sheet is empty - matching the exact CSV format
 				await this.sheets.spreadsheets.values.update({
 					spreadsheetId: this.spreadsheetId,
-					range: "A1:AT1",
+					range: "A1:AU1",
 					valueInputOption: "RAW",
 					resource: {
 						values: [
@@ -113,14 +113,14 @@ class SheetsService {
 				data.organization_address || "",
 				data.organization_estimated_num_employees || "",
 				data.organization_platform || "",
-				data.organization_is_ecommerce ? "true" : "false",
+				data.organization_is_ecommerce ? "TRUE" : "FALSE",
 				data.pages_all || "",
 				data.pages_about || "",
 				data.pages_contact || "",
 				data.pages_product || "",
 				data.pages_collection || "",
 				data.pages_blog || "",
-				data.pages_is_ecommerce ? "true" : "false",
+				data.pages_is_ecommerce ? "TRUE" : "FALSE",
 				data.pages_contact_page_url || "",
 				data.pages_contact_page_email || "",
 				data.pages_contact_page_social_links_youtube || "",
@@ -130,8 +130,8 @@ class SheetsService {
 				data.pages_product_copy || "",
 				data.pages_blog_copy || "",
 				data.email_candidates || "",
-				data.integrations_klaviyo ? "true" : "false",
-				data.integrations_meta ? "true" : "false",
+				data.integrations_klaviyo ? "TRUE" : "FALSE",
+				data.integrations_meta ? "TRUE" : "FALSE",
 				data.pages_contact_page_social_links_facebook || "",
 				data.pages_contact_page_social_links_linkedin || "",
 				data.pages_contact_page_social_links || "",
@@ -141,7 +141,7 @@ class SheetsService {
 
 			await this.sheets.spreadsheets.values.append({
 				spreadsheetId: this.spreadsheetId,
-				range: "A:AT",
+				range: "A:AU",
 				valueInputOption: "RAW",
 				resource: {
 					values: [values],

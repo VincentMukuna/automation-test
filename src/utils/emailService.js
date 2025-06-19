@@ -37,7 +37,11 @@ class EmailService {
 				companyTwitterUrl: response.data.company_twitter_url || "",
 				companyType: response.data.company_type || "",
 				mxProvider: response.data.mx_provider || "",
-				isDomainCatchAll: response.data.is_domain_catch_all || false
+				isDomainCatchAll: response.data.is_domain_catch_all || false,
+				// Add location data
+				companyCity: response.data.company_location?.locality || "",
+				companyCountry: response.data.company_location?.country || "",
+				companyAddress: response.data.company_location?.name || ""
 			};
 
 			return {
@@ -94,7 +98,11 @@ class EmailService {
 				companyTwitterUrl: response.data.company_twitter_url || "",
 				companyType: response.data.company_type || "",
 				mxProvider: response.data.mx_provider || "",
-				isDomainCatchAll: response.data.is_domain_catch_all || false
+				isDomainCatchAll: response.data.is_domain_catch_all || false,
+				// Add location data
+				companyCity: response.data.company_location?.locality || "",
+				companyCountry: response.data.company_location?.country || "",
+				companyAddress: response.data.company_location?.name || ""
 			};
 
 			return {
@@ -122,8 +130,9 @@ class EmailService {
 		let validationStatus = "not_provided";
 		let validationSource = "none";
 		let companyInfo = {};
+		let emailCandidates = [];
 
-		// If email is provided, validate it
+		// If email is provided, validate it and add to candidates
 		if (email) {
 			try {
 				const validation = await this.validateEmail(email);
@@ -131,10 +140,32 @@ class EmailService {
 				validationStatus = validation.status;
 				validationSource = validation.source;
 				companyInfo = validation.companyInfo || {};
+				
+				// Add to email candidates
+				emailCandidates.push({
+					source: "csv_email",
+					email: email,
+					status: validation.status,
+					is_valid: validation.isValid,
+					validation_source: validation.source,
+					mx_record: null,
+					is_domain_catch_all: companyInfo.isDomainCatchAll || false
+				});
 			} catch (error) {
 				isValid = false;
 				validationStatus = "error";
 				validationSource = "leadmagic";
+				
+				// Add to email candidates even if validation failed
+				emailCandidates.push({
+					source: "csv_email",
+					email: email,
+					status: "error",
+					is_valid: false,
+					validation_source: "leadmagic",
+					mx_record: null,
+					is_domain_catch_all: false
+				});
 			}
 		}
 
@@ -150,6 +181,17 @@ class EmailService {
 					validationStatus = validation.status;
 					validationSource = validation.source;
 					companyInfo = validation.companyInfo || foundEmail.companyInfo || {};
+					
+					// Add found email to candidates
+					emailCandidates.push({
+						source: "email_finder",
+						email: foundEmail.email,
+						status: validation.status,
+						is_valid: validation.isValid,
+						validation_source: validation.source,
+						mx_record: null,
+						is_domain_catch_all: companyInfo.isDomainCatchAll || false
+					});
 				} else {
 					// Use company info from finder even if no email found
 					companyInfo = foundEmail.companyInfo || {};
@@ -166,7 +208,8 @@ class EmailService {
 			isValid,
 			validationStatus,
 			validationSource,
-			companyInfo
+			companyInfo,
+			emailCandidates
 		};
 	}
 }

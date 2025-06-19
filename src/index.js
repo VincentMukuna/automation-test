@@ -195,12 +195,12 @@ async function processLead(
 
 		// Step 7: Update row data with all collected information
 		rowData.contact_email = emailResult.email;
-		rowData.contact_is_valid_email = emailResult.isValid;
+		rowData.contact_is_valid_email = emailResult.isValid ? "TRUE" : "FALSE";
 		rowData.contact_validation_status = emailResult.validationStatus;
 		rowData.contact_validation_source = emailResult.validationSource;
 		rowData.organization_platform = platform;
 		rowData.organization_is_ecommerce = isEcommerce;
-		rowData.pages_all = allUrls.join(', ');
+		rowData.pages_all = JSON.stringify(allUrls);
 		rowData.pages_about = urls.aboutPage || "";
 		rowData.pages_contact = urls.contactPage || "";
 		rowData.pages_product = urls.productPage || "";
@@ -215,6 +215,7 @@ async function processLead(
 		rowData.integrations_klaviyo = integrations.klaviyo;
 		rowData.integrations_meta = integrations.meta;
 		rowData.personalized_icebreaker = personalizedIcebreaker;
+		rowData.email_candidates = JSON.stringify(emailResult.emailCandidates || []);
 
 		// Add LeadMagic company information
 		if (emailResult.companyInfo) {
@@ -222,6 +223,10 @@ async function processLead(
 			rowData.organization_facebook_url = emailResult.companyInfo.companyFacebookUrl || "";
 			rowData.organization_founded_year = emailResult.companyInfo.companyFounded || "";
 			rowData.organization_estimated_num_employees = emailResult.companyInfo.companySize || "";
+			// Add location data from LeadMagic
+			rowData.organization_city = emailResult.companyInfo.companyCity || "";
+			rowData.organization_country = emailResult.companyInfo.companyCountry || "";
+			rowData.organization_address = emailResult.companyInfo.companyAddress || "";
 		}
 
 		// Add social media links from contact page
