@@ -127,8 +127,8 @@ class EmailService {
 	async processEmail(contactEmail, firstName, lastName, domain) {
 		let email = contactEmail;
 		let isValid = false;
-		let validationStatus = "not_provided";
-		let validationSource = "none";
+		let validationStatus = "unknown";
+		let validationSource = "unknown";
 		let companyInfo = {};
 		let emailCandidates = [];
 

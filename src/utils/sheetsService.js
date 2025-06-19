@@ -31,7 +31,7 @@ class SheetsService {
 					resource: {
 						values: [
 							[
-								"id",
+								"",
 								"domain",
 								"updated_at",
 								"contact_first_name",
