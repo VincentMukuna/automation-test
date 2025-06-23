@@ -17,23 +17,18 @@ class ContentScraper {
 		if (!url) return null;
 
 		try {
-			const response = await axios.get(url, {
+			const { data: html } = await axios.get(url, {
 				headers: this.headers,
-				timeout: 15000, // Increased timeout for better reliability
+				timeout: 15000,
 				maxRedirects: 5,
 			});
 
-			const $ = cheerio.load(response.data);
+			const $ = cheerio.load(html);
 
-			// Remove only truly unwanted elements that don't contain meaningful content
-			$(
-				"script, style, noscript, iframe, svg, video, audio, form"
-			).remove();
+			// Simple approach like ecommerce checker - get all text from body
+			const text = $("body").text().replace(/\s+/g, " ").trim();
 
-			// Get comprehensive content from the page
-			let content = this.extractAllContent($);
-
-			return this.cleanContent(content);
+			return text;
 		} catch (error) {
 			console.error(`Error scraping content from ${url}:`, error.message);
 			if (error.response) {
@@ -44,125 +39,40 @@ class ContentScraper {
 		}
 	}
 
-	extractAllContent($) {
-		let content = "";
-
-		// Extract text from all meaningful elements
-		const textElements = [
-			"h1",
-			"h2",
-			"h3",
-			"h4",
-			"h5",
-			"h6", // Headings
-			"p",
-			"div",
-			"span",
-			"li",
-			"td",
-			"th", // Text content
-			"article",
-			"section",
-			"main",
-			"aside", // Semantic content
-			"blockquote",
-			"pre",
-			"code", // Code and quotes
-			"label",
-			"legend",
-			"caption", // Form and table labels
-			"title",
-			"meta[name='description']",
-			"meta[name='keywords']", // Meta content
-		];
-
-		// Extract text from each element type
-		textElements.forEach((selector) => {
-			$(selector).each((i, element) => {
-				const text = $(element).text().trim();
-				if (text && text.length > 0) {
-					content += text + " ";
-				}
-			});
-		});
-
-		// Also extract alt text from images for accessibility content
-		$("img[alt]").each((i, element) => {
-			const altText = $(element).attr("alt").trim();
-			if (altText && altText.length > 0) {
-				content += altText + " ";
-			}
-		});
-
-		// Extract title attributes from elements
-		$("[title]").each((i, element) => {
-			const titleText = $(element).attr("title").trim();
-			if (titleText && titleText.length > 0) {
-				content += titleText + " ";
-			}
-		});
-
-		// If still no content, get everything from body
-		if (!content.trim()) {
-			content = $("body").text();
-		}
-
-		return content;
-	}
-
 	async analyzeHomepage(url) {
 		try {
-			const response = await axios.get(url, {
+			const { data: html } = await axios.get(url, {
 				headers: this.headers,
 				timeout: 15000,
 				maxRedirects: 5,
 			});
 
-			const $ = cheerio.load(response.data);
+			const $ = cheerio.load(html);
 			const baseUrl = new URL(url).origin;
 			const urls = new Set();
 
-			// Find all links - more comprehensive approach
-			$("a").each((i, link) => {
-				const href = $(link).attr("href");
-				if (href) {
-					// Convert relative URLs to absolute
-					let fullUrl;
-					try {
-						if (href.startsWith("http")) {
-							fullUrl = href;
-						} else if (href.startsWith("/")) {
-							fullUrl = baseUrl + href;
-						} else if (
-							href.startsWith("#") ||
-							href.startsWith("javascript:") ||
-							href.startsWith("mailto:") ||
-							href.startsWith("tel:")
-						) {
-							// Skip anchor links, javascript, email, and phone links
-							return;
-						} else {
-							fullUrl = baseUrl + "/" + href;
-						}
+			// Find all links - simple approach like ecommerce checker
+			$("a[href]").each((_, el) => {
+				let href = $(el).attr("href");
+				if (!href) return;
 
-						// Only include URLs from the same domain and valid URLs
-						if (
-							fullUrl.startsWith(baseUrl) &&
-							!fullUrl.includes("#")
-						) {
-							urls.add(fullUrl);
-						}
-					} catch (e) {
-						// Skip invalid URLs
-						console.warn(`Invalid URL found: ${href}`);
-					}
+				// Convert relative URLs to absolute
+				if (href.startsWith("/")) {
+					href = baseUrl + href;
+				} else if (!href.startsWith("http")) {
+					href = baseUrl + "/" + href;
+				}
+
+				// Only include URLs from the same domain
+				if (href.includes(baseUrl) && !href.includes("#")) {
+					urls.add(href.split("#")[0].split("?")[0]);
 				}
 			});
 
-			// Get comprehensive content
-			const content = this.extractAllContent($);
+			// Get content using simple approach
+			const content = $("body").text().replace(/\s+/g, " ").trim();
 
-			// Categorize URLs - more flexible matching
+			// Categorize URLs
 			const categorizedUrls = {
 				aboutPage: null,
 				collectionsPage: null,
@@ -171,93 +81,64 @@ class ContentScraper {
 				blogPage: null,
 			};
 
-			// Sort URLs by relevance (prefer shorter URLs for the same type)
 			const sortedUrls = Array.from(urls).sort(
 				(a, b) => a.length - b.length
 			);
 
 			for (const url of sortedUrls) {
-				const lowerUrl = url.toLowerCase();
 				const path = new URL(url).pathname.toLowerCase();
 
-				// About page matching - more patterns
+				// About page matching
 				if (
 					!categorizedUrls.aboutPage &&
 					(path.includes("/about") ||
 						path.includes("/about-us") ||
-						path.includes("/about-our-company") ||
 						path.includes("/our-story") ||
-						path.includes("/who-we-are") ||
-						path.includes("/company") ||
-						path.includes("/team") ||
-						path.includes("/story") ||
-						path.includes("/mission") ||
-						path.includes("/vision") ||
-						path.includes("/values"))
+						path.includes("/company"))
 				) {
 					categorizedUrls.aboutPage = url;
 				}
 
-				// Contact page matching - more patterns
+				// Contact page matching
 				if (
 					!categorizedUrls.contactPage &&
 					(path.includes("/contact") ||
 						path.includes("/contact-us") ||
 						path.includes("/get-in-touch") ||
-						path.includes("/reach-us") ||
-						path.includes("/connect") ||
-						path.includes("/support") ||
-						path.includes("/help") ||
-						path.includes("/get-help"))
+						path.includes("/support"))
 				) {
 					categorizedUrls.contactPage = url;
 				}
 
-				// Collections page matching - more patterns
+				// Collections page matching
 				if (
 					!categorizedUrls.collectionsPage &&
 					(path.includes("/collections") ||
 						path.includes("/shop") ||
 						path.includes("/category") ||
-						path.includes("/products") ||
-						path.includes("/store") ||
-						path.includes("/catalog") ||
-						path.includes("/browse") ||
-						path.includes("/menu") ||
-						path.includes("/services") ||
-						path.includes("/offerings"))
+						path.includes("/products"))
 				) {
 					categorizedUrls.collectionsPage = url;
 				}
 
-				// Product page matching - more patterns
+				// Product page matching
 				if (
 					!categorizedUrls.productPage &&
 					(path.includes("/product/") ||
 						path.includes("/products/") ||
 						path.includes("/item/") ||
-						path.includes("/p/") ||
-						path.includes("/product-detail") ||
-						path.includes("/buy/") ||
-						path.includes("/shop/") ||
-						path.includes("/detail/") ||
-						path.includes("/view/"))
+						path.includes("/p/"))
 				) {
 					categorizedUrls.productPage = url;
 				}
 
-				// Blog page matching - more patterns
+				// Blog page matching
 				if (
 					!categorizedUrls.blogPage &&
 					(path.includes("/blog") ||
 						path.includes("/news") ||
 						path.includes("/articles") ||
-						path.includes("/posts") ||
-						path.includes("/journal") ||
-						path.includes("/magazine") ||
-						path.includes("/insights") ||
-						path.includes("/resources") ||
-						path.includes("/updates"))
+						path.includes("/posts"))
 				) {
 					categorizedUrls.blogPage = url;
 				}
@@ -265,7 +146,7 @@ class ContentScraper {
 
 			return {
 				urls: categorizedUrls,
-				content: this.cleanContent(content),
+				content: content,
 				allUrls: Array.from(urls),
 			};
 		} catch (error) {
@@ -286,14 +167,7 @@ class ContentScraper {
 
 	cleanContent(content) {
 		if (!content) return "";
-
-		return content
-			.replace(/\s+/g, " ") // Replace multiple spaces with single space
-			.replace(/\n+/g, " ") // Replace newlines with space
-			.replace(/[^\S\r\n]+/g, " ") // Replace multiple whitespace with single space
-			.replace(/[\u200B-\u200D\uFEFF]/g, "") // Remove zero-width spaces
-			.replace(/\s+/g, " ") // Final cleanup of any remaining multiple spaces
-			.trim(); // Remove leading/trailing whitespace
+		return content.replace(/\s+/g, " ").trim();
 	}
 
 	isEcommerceStore(urls) {
