@@ -19,46 +19,19 @@ class ContentScraper {
 		try {
 			const response = await axios.get(url, {
 				headers: this.headers,
-				timeout: 10000, // 10 second timeout
+				timeout: 15000, // Increased timeout for better reliability
 				maxRedirects: 5,
 			});
 
 			const $ = cheerio.load(response.data);
 
-			// Remove unwanted elements
+			// Remove only truly unwanted elements that don't contain meaningful content
 			$(
-				"script, style, noscript, iframe, svg, img, video, audio, form, nav, footer, header"
+				"script, style, noscript, iframe, svg, video, audio, form"
 			).remove();
 
-			// Try to find the main content
-			let content = "";
-
-			// Common content selectors
-			const contentSelectors = [
-				"main",
-				"article",
-				".main-content",
-				".content",
-				"#content",
-				".post-content",
-				".entry-content",
-				".product-description",
-				".product-content",
-			];
-
-			// Try each selector
-			for (const selector of contentSelectors) {
-				const element = $(selector);
-				if (element.length > 0) {
-					content = element.text();
-					break;
-				}
-			}
-
-			// If no content found with selectors, use body
-			if (!content) {
-				content = $("body").text();
-			}
+			// Get comprehensive content from the page
+			let content = this.extractAllContent($);
 
 			return this.cleanContent(content);
 		} catch (error) {
@@ -71,64 +44,125 @@ class ContentScraper {
 		}
 	}
 
+	extractAllContent($) {
+		let content = "";
+
+		// Extract text from all meaningful elements
+		const textElements = [
+			"h1",
+			"h2",
+			"h3",
+			"h4",
+			"h5",
+			"h6", // Headings
+			"p",
+			"div",
+			"span",
+			"li",
+			"td",
+			"th", // Text content
+			"article",
+			"section",
+			"main",
+			"aside", // Semantic content
+			"blockquote",
+			"pre",
+			"code", // Code and quotes
+			"label",
+			"legend",
+			"caption", // Form and table labels
+			"title",
+			"meta[name='description']",
+			"meta[name='keywords']", // Meta content
+		];
+
+		// Extract text from each element type
+		textElements.forEach((selector) => {
+			$(selector).each((i, element) => {
+				const text = $(element).text().trim();
+				if (text && text.length > 0) {
+					content += text + " ";
+				}
+			});
+		});
+
+		// Also extract alt text from images for accessibility content
+		$("img[alt]").each((i, element) => {
+			const altText = $(element).attr("alt").trim();
+			if (altText && altText.length > 0) {
+				content += altText + " ";
+			}
+		});
+
+		// Extract title attributes from elements
+		$("[title]").each((i, element) => {
+			const titleText = $(element).attr("title").trim();
+			if (titleText && titleText.length > 0) {
+				content += titleText + " ";
+			}
+		});
+
+		// If still no content, get everything from body
+		if (!content.trim()) {
+			content = $("body").text();
+		}
+
+		return content;
+	}
+
 	async analyzeHomepage(url) {
 		try {
 			const response = await axios.get(url, {
 				headers: this.headers,
-				timeout: 10000,
+				timeout: 15000,
 				maxRedirects: 5,
 			});
 
 			const $ = cheerio.load(response.data);
 			const baseUrl = new URL(url).origin;
 			const urls = new Set();
-			let content = "";
 
-			// Find all links
+			// Find all links - more comprehensive approach
 			$("a").each((i, link) => {
 				const href = $(link).attr("href");
 				if (href) {
 					// Convert relative URLs to absolute
 					let fullUrl;
-					if (href.startsWith("http")) {
-						fullUrl = href;
-					} else if (href.startsWith("/")) {
-						fullUrl = baseUrl + href;
-					} else {
-						fullUrl = baseUrl + "/" + href;
-					}
-					
-					// Only include URLs from the same domain
-					if (fullUrl.startsWith(baseUrl)) {
-						urls.add(fullUrl);
+					try {
+						if (href.startsWith("http")) {
+							fullUrl = href;
+						} else if (href.startsWith("/")) {
+							fullUrl = baseUrl + href;
+						} else if (
+							href.startsWith("#") ||
+							href.startsWith("javascript:") ||
+							href.startsWith("mailto:") ||
+							href.startsWith("tel:")
+						) {
+							// Skip anchor links, javascript, email, and phone links
+							return;
+						} else {
+							fullUrl = baseUrl + "/" + href;
+						}
+
+						// Only include URLs from the same domain and valid URLs
+						if (
+							fullUrl.startsWith(baseUrl) &&
+							!fullUrl.includes("#")
+						) {
+							urls.add(fullUrl);
+						}
+					} catch (e) {
+						// Skip invalid URLs
+						console.warn(`Invalid URL found: ${href}`);
 					}
 				}
 			});
 
-			// Get main content
-			const contentSelectors = [
-				"main",
-				"article",
-				".main-content",
-				".content",
-				"#content",
-				".post-content",
-				".entry-content",
-			];
+			// Get comprehensive content
+			const content = this.extractAllContent($);
 
-			for (const selector of contentSelectors) {
-				const element = $(selector);
-				if (element.length > 0) {
-					content = element.text();
-					break;
-				}
-			}
-
-			if (!content) {
-				content = $("body").text();
-			}
-
-			// Categorize URLs
+			// Categorize URLs - more flexible matching
 			const categorizedUrls = {
 				aboutPage: null,
 				collectionsPage: null,
@@ -144,71 +178,86 @@ class ContentScraper {
 
 			for (const url of sortedUrls) {
 				const lowerUrl = url.toLowerCase();
+				const path = new URL(url).pathname.toLowerCase();
 
-				// About page matching
+				// About page matching - more patterns
 				if (
 					!categorizedUrls.aboutPage &&
-					(lowerUrl.includes("/about") ||
-						lowerUrl.includes("/about-us") ||
-						lowerUrl.includes("/about-our-company") ||
-						lowerUrl.includes("/our-story") ||
-						lowerUrl.includes("/who-we-are") ||
-						lowerUrl.includes("/company") ||
-						lowerUrl.includes("/team") ||
-						lowerUrl.includes("/story"))
+					(path.includes("/about") ||
+						path.includes("/about-us") ||
+						path.includes("/about-our-company") ||
+						path.includes("/our-story") ||
+						path.includes("/who-we-are") ||
+						path.includes("/company") ||
+						path.includes("/team") ||
+						path.includes("/story") ||
+						path.includes("/mission") ||
+						path.includes("/vision") ||
+						path.includes("/values"))
 				) {
 					categorizedUrls.aboutPage = url;
 				}
 
-				// Contact page matching
+				// Contact page matching - more patterns
 				if (
 					!categorizedUrls.contactPage &&
-					(lowerUrl.includes("/contact") ||
-						lowerUrl.includes("/contact-us") ||
-						lowerUrl.includes("/get-in-touch") ||
-						lowerUrl.includes("/reach-us") ||
-						lowerUrl.includes("/connect"))
+					(path.includes("/contact") ||
+						path.includes("/contact-us") ||
+						path.includes("/get-in-touch") ||
+						path.includes("/reach-us") ||
+						path.includes("/connect") ||
+						path.includes("/support") ||
+						path.includes("/help") ||
+						path.includes("/get-help"))
 				) {
 					categorizedUrls.contactPage = url;
 				}
 
-				// Collections page matching
+				// Collections page matching - more patterns
 				if (
 					!categorizedUrls.collectionsPage &&
-					(lowerUrl.includes("/collections") ||
-						lowerUrl.includes("/shop") ||
-						lowerUrl.includes("/category") ||
-						lowerUrl.includes("/products") ||
-						lowerUrl.includes("/store") ||
-						lowerUrl.includes("/catalog") ||
-						lowerUrl.includes("/browse"))
+					(path.includes("/collections") ||
+						path.includes("/shop") ||
+						path.includes("/category") ||
+						path.includes("/products") ||
+						path.includes("/store") ||
+						path.includes("/catalog") ||
+						path.includes("/browse") ||
+						path.includes("/menu") ||
+						path.includes("/services") ||
+						path.includes("/offerings"))
 				) {
 					categorizedUrls.collectionsPage = url;
 				}
 
-				// Product page matching
+				// Product page matching - more patterns
 				if (
 					!categorizedUrls.productPage &&
-					(lowerUrl.includes("/product/") ||
-						lowerUrl.includes("/products/") ||
-						lowerUrl.includes("/item/") ||
-						lowerUrl.includes("/p/") ||
-						lowerUrl.includes("/product-detail") ||
-						lowerUrl.includes("/buy/") ||
-						lowerUrl.includes("/shop/"))
+					(path.includes("/product/") ||
+						path.includes("/products/") ||
+						path.includes("/item/") ||
+						path.includes("/p/") ||
+						path.includes("/product-detail") ||
+						path.includes("/buy/") ||
+						path.includes("/shop/") ||
+						path.includes("/detail/") ||
+						path.includes("/view/"))
 				) {
 					categorizedUrls.productPage = url;
 				}
 
-				// Blog page matching
+				// Blog page matching - more patterns
 				if (
 					!categorizedUrls.blogPage &&
-					(lowerUrl.includes("/blog") ||
-						lowerUrl.includes("/news") ||
-						lowerUrl.includes("/articles") ||
-						lowerUrl.includes("/posts") ||
-						lowerUrl.includes("/journal") ||
-						lowerUrl.includes("/magazine"))
+					(path.includes("/blog") ||
+						path.includes("/news") ||
+						path.includes("/articles") ||
+						path.includes("/posts") ||
+						path.includes("/journal") ||
+						path.includes("/magazine") ||
+						path.includes("/insights") ||
+						path.includes("/resources") ||
+						path.includes("/updates"))
 				) {
 					categorizedUrls.blogPage = url;
 				}
@@ -243,6 +292,7 @@ class ContentScraper {
 			.replace(/\n+/g, " ") // Replace newlines with space
 			.replace(/[^\S\r\n]+/g, " ") // Replace multiple whitespace with single space
 			.replace(/[\u200B-\u200D\uFEFF]/g, "") // Remove zero-width spaces
+			.replace(/\s+/g, " ") // Final cleanup of any remaining multiple spaces
 			.trim(); // Remove leading/trailing whitespace
 	}
 
@@ -265,6 +315,9 @@ class ContentScraper {
 			"/my-account",
 			"/account",
 			"/wishlist",
+			"/order",
+			"/payment",
+			"/shipping",
 		];
 
 		return urls.some(
